@@ -4,6 +4,8 @@ from sklearn.feature_extraction.text import CountVectorizer
 import numpy as np
 import pandas as pd
 
+os.environ['JAVA_HOME'] = '/usr/lib/jvm/default-java'
+
 st.set_page_config(page_title="문장 벡터화 프로그램", layout="wide", initial_sidebar_state="collapsed")
 
 st.markdown("""
