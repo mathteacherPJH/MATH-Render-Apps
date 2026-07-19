@@ -3,6 +3,7 @@ from konlpy.tag import Okt
 from sklearn.feature_extraction.text import CountVectorizer
 import numpy as np
 import pandas as pd
+import os
 
 os.environ['JAVA_HOME'] = '/usr/lib/jvm/default-java'
 
