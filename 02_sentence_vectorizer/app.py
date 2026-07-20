@@ -1,3 +1,5 @@
+import os
+import jpype
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -5,36 +7,36 @@ from typing import List
 from konlpy.tag import Okt
 from sklearn.feature_extraction.text import CountVectorizer
 import numpy as np
-import os
 
-import os
-
-# Render(Ubuntu/Debian 리눅스) 환경에서의 OpenJDK 기본 경로 지정
+# 자바(JVM) 경로 수동 지정 (Render 리눅스 환경 표준)
 os.environ['JAVA_HOME'] = '/usr/lib/jvm/default-java'
-os.environ['PATH'] += f":{os.environ['JAVA_HOME']}/bin"
+if not jpype.isJVMStarted():
+    try:
+        jvm_path = jpype.getDefaultJVMPath()
+        jpype.startJVM(jvm_path)
+    except Exception as e:
+        print(f"JVM Startup Error: {e}")
 
 app = FastAPI()
 
-# 🌐 CORS 설정: 깃허브 블로그 주소에서 보내는 요청만 허용 (보안 강화)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 나중에 본인의 깃허브 블로그 주소로 제한해도 됩니다.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 형태소 분석기 초기화 (Okt)
+# 진짜 형태소 분석기 Okt 장착
 okt = Okt()
 
 def lemmatize_core(text: str) -> str:
     if not text.strip():
         return ""
-    # 형태소 추출 및 기본형 복원
+    # 형태소 추출 및 기본형 복원 (KoNLPy 고유 기능)
     raw_tokens = okt.morphs(text, stem=True)
     return " ".join(raw_tokens)
 
-# 프론트엔드에서 받을 데이터 구조 정의
 class NLPRequest(BaseModel):
     sentences: List[str]
     custom_vocab: List[str] = []
@@ -45,21 +47,17 @@ def analyze_sentences(data: NLPRequest):
     if not sentences:
         return {"vocabulary": [], "one_hot": [], "frequency": [], "processed_corpus": []}
 
-    # 1. 형태소 분석 및 기본형 변환 수행
     processed_corpus = [lemmatize_core(s) for s in sentences]
 
-    # 2. scikit-learn CountVectorizer 연산
     vectorizer = CountVectorizer(token_pattern=r'(?u)\b\w+\b')
     try:
         frequency_matrix = vectorizer.fit_transform(processed_corpus).toarray()
         vocabulary_features = list(vectorizer.get_feature_names_out())
         
-        # 사용자가 수동으로 추가한 단어가 있다면 단어집합에 합산
         for custom_w in data.custom_vocab:
             if custom_w not in vocabulary_features:
                 vocabulary_features.append(custom_w)
                 
-        # 만약 커스텀 단어가 추가되어 벡터 차원이 달라질 경우를 대비해 재생성
         if data.custom_vocab:
             vectorizer_custom = CountVectorizer(token_pattern=r'(?u)\b\w+\b', vocabulary=vocabulary_features)
             frequency_matrix = vectorizer_custom.fit_transform(processed_corpus).toarray()
